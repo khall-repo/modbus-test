@@ -10,13 +10,21 @@
 
 #define MAX_REGS 64
 #define REG_BUF_SZ MAX_REGS*2
-#define DEFAULT_PORT 502
+#define DEFAULT_PORT_INT 502   // accepted by modbus_t *modbus_new_tcp(const char *ip, int port)
+#define DEFAULT_PORT_STR "502" // accepted by modbus_t *modbus_new_tcp_pi(const char *node, const char *service);
 
 // read regs
-// ./bin/main -ip 192.168.122.200 -s 1 -f 3 -a 20000 -n 4
+// ./bin/main -ip 192.168.122.200 -s 1 -f 3 -a 20000 -n 4 (works ok with modbus_new_tcp())
+// ./bin/main -ip fe80:0000:0000:0000:6252:d0ff:fe07:40f1 -s 1 -f 3 -a 20000 -n 4 (results in bad arg msg from modbus driver)
+// ./bin/main -ip fe80::6252:d0ff:fe07:40f1 -s 1 -f 3 -a 20000 -n 4 (results in bad arg msg from modbus driver)
+
+// ./bin/main -ip 6252:d0ff:fe07:40f1 -s 1 -f 3 -a 20000 -n 4 (results in connection refused msg from modbus driver)
+//                                                            (nothing is even coming out of the port according to)
+//                                                            (wireshark capture..)
+
 
 // write regs
-// ./bin/main -ip 192.168.122.200 -s 1 -f 16 -a 20000 -n 4 -v 1:2:3:4
+// ./bin/main -ip 192.168.122.200 -s 1 -f 16 -a 20000 -n 4 -v 1:2:3:4cl
 // write regs with hex address and hex values
 // ./bin/main -ip 192.168.122.200 -s 1 -f 16 -a -h 4e20 -n 4 -v -h a:b:c:d
 
@@ -157,7 +165,8 @@ int main(int argc, char *argv[])
   print_target_ip();
   print_modbus_pdu();
 
-  ctx = modbus_new_tcp(target_ip.c_str(), DEFAULT_PORT);
+  //ctx = modbus_new_tcp(target_ip.c_str(), DEFAULT_PORT_INT);
+  ctx = modbus_new_tcp_pi(target_ip.c_str(), DEFAULT_PORT_STR);
   if (modbus_connect(ctx) == -1) {
     fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
     modbus_free(ctx);
