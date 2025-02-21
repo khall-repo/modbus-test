@@ -13,20 +13,22 @@
 #define DEFAULT_PORT_INT 502   // accepted by modbus_t *modbus_new_tcp(const char *ip, int port)
 #define DEFAULT_PORT_STR "502" // accepted by modbus_t *modbus_new_tcp_pi(const char *node, const char *service);
 
-// read regs
-// ./bin/main -ip 192.168.122.200 -s 1 -f 3 -a 20000 -n 4 (works ok with modbus_new_tcp())
-// ./bin/main -ip fe80:0000:0000:0000:6252:d0ff:fe07:40f1 -s 1 -f 3 -a 20000 -n 4 (results in bad arg msg from modbus driver)
-// ./bin/main -ip fe80::6252:d0ff:fe07:40f1 -s 1 -f 3 -a 20000 -n 4 (results in bad arg msg from modbus driver)
+// read regs ip4
+// ./bin/main -ip 192.168.122.200 -s 1 -f 3 -a 20000 -n 4
+// read regs ip6 (the EUA64 address)
+// ./bin/main -ip fe80::6252:d0ff:fe07:40f1%enp27s0 -s 1 -f 3 -a 20000 -n 4
+// read regs ip6 (the address I made up)
+// ./bin/main -ip fe80::454e:4d45:544d:3245%enp27s0 -s 1 -f 3 -a 20000 -n 4
 
-// ./bin/main -ip 6252:d0ff:fe07:40f1 -s 1 -f 3 -a 20000 -n 4 (results in connection refused msg from modbus driver)
-//                                                            (nothing is even coming out of the port according to)
-//                                                            (wireshark capture..)
-
-
-// write regs
+// write regs ip4
 // ./bin/main -ip 192.168.122.200 -s 1 -f 16 -a 20000 -n 4 -v 1:2:3:4cl
-// write regs with hex address and hex values
+// write regs with hex address and hex values ip4
 // ./bin/main -ip 192.168.122.200 -s 1 -f 16 -a -h 4e20 -n 4 -v -h a:b:c:d
+
+// write regs ip6
+// ./bin/main -ip fe80::6252:d0ff:fe07:40f1%enp27s0 -s 1 -f 16 -a 20000 -n 4 -v 1:2:3:4
+// write regs with hex address and hex values ip6
+// ./bin/main -ip fe80::6252:d0ff:fe07:40f1%enp27s0 -s 1 -f 16 -a -h 4e20 -n 4 -v -h a:b:c:d
 
 std::string target_ip = "";
 
@@ -132,10 +134,25 @@ int init(int argc, char *argv[])
       argi += 2;
       --argc;
     } else {
-      std::cout << "Error: bad arg\n";
+      std::cerr << "Error: bad arg\n";
       return -1;
     }
   }
+
+  if((MODBUS_FC_READ_HOLDING_REGISTERS != modbus_pdu.function) ||
+     (MODBUS_FC_WRITE_MULTIPLE_REGISTERS != modbus_pdu.function) ) {
+      std::cerr << "Error: invalid function: " << modbus_pdu.function << 
+      ". Only 0x03 and 0x10 are supported at this time.\n";
+  }
+
+  if(0 == modbus_pdu.num_regs) {
+    std::cerr << "Error: 0 registers\n";
+    return -1;
+  } else if(MAX_REGS < modbus_pdu.num_regs) {
+    std::cerr << "Error: too many registers: " << modbus_pdu.num_regs << "\n";
+    return -1;
+  }
+
   return 0;
 }
 
@@ -165,8 +182,8 @@ int main(int argc, char *argv[])
   print_target_ip();
   print_modbus_pdu();
 
-  //ctx = modbus_new_tcp(target_ip.c_str(), DEFAULT_PORT_INT);
-  ctx = modbus_new_tcp_pi(target_ip.c_str(), DEFAULT_PORT_STR);
+  //ctx = modbus_new_tcp(target_ip.c_str(), DEFAULT_PORT_INT); // ip4 only
+  ctx = modbus_new_tcp_pi(target_ip.c_str(), NULL); // NULL uses default ModBUS port 502
   if (modbus_connect(ctx) == -1) {
     fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
     modbus_free(ctx);
